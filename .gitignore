@@ -1,0 +1,26 @@
+# Claude Code settings
+.claude/
+
+# Build outputs
+bin/
+obj/
+*.user
+
+# IDE
+.vs/
+.idea/
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet
+*.nupkg
+packages/
+.nuget/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# User secrets / credentials
+appsettings.Development.json
