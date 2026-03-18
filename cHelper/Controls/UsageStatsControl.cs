@@ -23,6 +23,7 @@ public class UsageStatsControl : UserControl
     public UsageStatsControl(UsageTrackingService usageService)
     {
         _usageService = usageService;
+        DoubleBuffered = true;
         BuildUI();
         Refresh();
     }
@@ -31,17 +32,19 @@ public class UsageStatsControl : UserControl
     {
         Dock = DockStyle.Fill;
         Padding = new Padding(12);
+        BackColor = TossTheme.Background;
 
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             RowCount = 4,
             ColumnCount = 1,
-            Padding = new Padding(0)
+            Padding = new Padding(0),
+            BackColor = TossTheme.Background
         };
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
         Controls.Add(layout);
 
@@ -50,7 +53,8 @@ public class UsageStatsControl : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
-            RowCount = 1
+            RowCount = 1,
+            BackColor = TossTheme.Background
         };
         statsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.3f));
         statsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.3f));
@@ -69,7 +73,9 @@ public class UsageStatsControl : UserControl
         var recentLabel = new Label
         {
             Text = "Recent Activity",
-            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            Font = TossTheme.SectionHeader(),
+            ForeColor = TossTheme.TextSecondary,
+            BackColor = TossTheme.Background,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.BottomLeft
         };
@@ -81,8 +87,11 @@ public class UsageStatsControl : UserControl
             Dock = DockStyle.Fill,
             View = View.Details,
             FullRowSelect = true,
-            GridLines = true,
-            Font = new Font("Segoe UI", 8.5f)
+            GridLines = false,
+            BackColor = TossTheme.Surface,
+            ForeColor = TossTheme.TextPrimary,
+            BorderStyle = BorderStyle.None,
+            Font = TossTheme.Body(8.5f)
         };
         _recentList.Columns.Add("Time", 80);
         _recentList.Columns.Add("Model", 140);
@@ -93,43 +102,47 @@ public class UsageStatsControl : UserControl
         layout.Controls.Add(_recentList, 0, 3);
     }
 
-    private static Panel MakeStatBox(string title, out Label costLabel, out Label tokensLabel)
+    private static RoundedCard MakeStatBox(string title, out Label costLabel, out Label tokensLabel)
     {
-        var panel = new Panel
+        var card = new RoundedCard
         {
             Dock = DockStyle.Fill,
             Margin = new Padding(4),
-            BorderStyle = BorderStyle.FixedSingle
+            Padding = new Padding(12, 10, 12, 10)
         };
 
         var titleLbl = new Label
         {
             Text = title,
-            Font = new Font("Segoe UI", 8f),
-            ForeColor = Color.Gray,
-            Location = new Point(8, 6),
+            Font = TossTheme.StatLabel(),
+            ForeColor = TossTheme.TextTertiary,
+            BackColor = TossTheme.CardBackground,
+            Location = new Point(12, 10),
             AutoSize = true
         };
         costLabel = new Label
         {
             Text = "$0.00",
-            Font = new Font("Segoe UI", 14f, FontStyle.Bold),
-            Location = new Point(8, 24),
+            Font = TossTheme.StatValue(),
+            ForeColor = TossTheme.TextPrimary,
+            BackColor = TossTheme.CardBackground,
+            Location = new Point(12, 26),
             AutoSize = true
         };
         tokensLabel = new Label
         {
             Text = "0 tokens",
-            Font = new Font("Segoe UI", 8f),
-            ForeColor = Color.DimGray,
-            Location = new Point(8, 52),
+            Font = TossTheme.StatLabel(),
+            ForeColor = TossTheme.TextTertiary,
+            BackColor = TossTheme.CardBackground,
+            Location = new Point(12, 52),
             AutoSize = true
         };
 
-        panel.Controls.Add(titleLbl);
-        panel.Controls.Add(costLabel);
-        panel.Controls.Add(tokensLabel);
-        return panel;
+        card.Controls.Add(titleLbl);
+        card.Controls.Add(costLabel);
+        card.Controls.Add(tokensLabel);
+        return card;
     }
 
     public new void Refresh()
@@ -152,11 +165,18 @@ public class UsageStatsControl : UserControl
     private void RefreshChart()
     {
         var daily = _usageService.GetDailyBreakdown(30);
-        var model = new PlotModel { Title = "Daily Usage (30 days)", TitleFontSize = 10 };
+        var model = new PlotModel
+        {
+            Title = "Daily Usage (30 days)",
+            TitleFontSize = 10,
+            Background = OxyColors.White,
+            PlotAreaBackground = OxyColors.White,
+            TextColor = OxyColor.FromRgb(78, 89, 104)
+        };
 
         var barSeries = new BarSeries
         {
-            FillColor = OxyColor.FromRgb(99, 102, 241),
+            FillColor = OxyColor.FromRgb(49, 130, 246),
             Title = "Cost ($)"
         };
 
@@ -175,14 +195,18 @@ public class UsageStatsControl : UserControl
         {
             Position = AxisPosition.Left,
             ItemsSource = labels,
-            FontSize = 7
+            FontSize = 7,
+            AxislineColor = OxyColor.FromRgb(229, 232, 235),
+            TicklineColor = OxyColor.FromRgb(229, 232, 235)
         });
         model.Axes.Add(new LinearAxis
         {
             Position = AxisPosition.Bottom,
             Title = "Cost (USD)",
             TitleFontSize = 8,
-            FontSize = 7
+            FontSize = 7,
+            AxislineColor = OxyColor.FromRgb(229, 232, 235),
+            TicklineColor = OxyColor.FromRgb(229, 232, 235)
         });
 
         _chart.Model = model;

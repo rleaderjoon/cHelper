@@ -6,6 +6,7 @@ namespace cHelper.Controls;
 public class ClaudeCodeStatusControl : UserControl
 {
     private readonly ClaudeCodeService _claudeCodeService;
+    private Label _statusDot = null!;
     private Label _statusLabel = null!;
     private Label _versionLabel = null!;
     private ListView _projectList = null!;
@@ -21,22 +22,46 @@ public class ClaudeCodeStatusControl : UserControl
     {
         Dock = DockStyle.Fill;
         Padding = new Padding(12);
+        BackColor = TossTheme.Background;
 
         var layout = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             RowCount = 4,
-            ColumnCount = 1
+            ColumnCount = 1,
+            BackColor = TossTheme.Background
         };
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         Controls.Add(layout);
 
-        // Status row
-        var statusRow = new FlowLayoutPanel { Dock = DockStyle.Fill };
-        _statusLabel = new Label { AutoSize = true, Font = new Font("Segoe UI", 9f), TextAlign = ContentAlignment.MiddleLeft };
+        // Status row with colored dot
+        var statusRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = TossTheme.Background,
+            FlowDirection = FlowDirection.LeftToRight
+        };
+        _statusDot = new Label
+        {
+            Text = "●",
+            AutoSize = true,
+            Font = new Font("Segoe UI", 8f),
+            ForeColor = TossTheme.TextTertiary,
+            BackColor = TossTheme.Background,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        _statusLabel = new Label
+        {
+            AutoSize = true,
+            Font = TossTheme.Body(9f),
+            ForeColor = TossTheme.TextPrimary,
+            BackColor = TossTheme.Background,
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        statusRow.Controls.Add(_statusDot);
         statusRow.Controls.Add(_statusLabel);
         layout.Controls.Add(statusRow, 0, 0);
 
@@ -44,8 +69,9 @@ public class ClaudeCodeStatusControl : UserControl
         _versionLabel = new Label
         {
             AutoSize = true,
-            Font = new Font("Segoe UI", 8.5f),
-            ForeColor = Color.DimGray,
+            Font = TossTheme.Body(8.5f),
+            ForeColor = TossTheme.TextTertiary,
+            BackColor = TossTheme.Background,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleLeft
         };
@@ -55,7 +81,9 @@ public class ClaudeCodeStatusControl : UserControl
         var header = new Label
         {
             Text = "Recent Projects",
-            Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+            Font = TossTheme.SectionHeader(),
+            ForeColor = TossTheme.TextSecondary,
+            BackColor = TossTheme.Background,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.BottomLeft
         };
@@ -67,8 +95,11 @@ public class ClaudeCodeStatusControl : UserControl
             Dock = DockStyle.Fill,
             View = View.Details,
             FullRowSelect = true,
-            GridLines = true,
-            Font = new Font("Segoe UI", 8.5f)
+            GridLines = false,
+            BackColor = TossTheme.Surface,
+            ForeColor = TossTheme.TextPrimary,
+            BorderStyle = BorderStyle.None,
+            Font = TossTheme.Body(8.5f)
         };
         _projectList.Columns.Add("Project", 160);
         _projectList.Columns.Add("Sessions", 65);
@@ -90,14 +121,14 @@ public class ClaudeCodeStatusControl : UserControl
         var version = _claudeCodeService.GetVersion();
         if (version != null)
         {
+            _statusDot.ForeColor = TossTheme.Success;
             _statusLabel.Text = "Status: Installed";
-            _statusLabel.ForeColor = Color.Green;
             _versionLabel.Text = $"Version: {version}";
         }
         else
         {
+            _statusDot.ForeColor = TossTheme.Error;
             _statusLabel.Text = "Status: Not found";
-            _statusLabel.ForeColor = Color.OrangeRed;
             _versionLabel.Text = "claude CLI not found in PATH";
         }
 
