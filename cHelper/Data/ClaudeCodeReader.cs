@@ -84,4 +84,142 @@ public class ClaudeCodeReader
 
         return stats;
     }
+
+    // ── Project JSONL usage parsing ────────────────────────────────────────────
+
+    public List<ClaudeCodeUsageRecord> ReadUsageRecords(int daysBack = 90)
+    {
+        var records = new List<ClaudeCodeUsageRecord>();
+        var projectsDir = Path.Combine(_claudeDir, "projects");
+        if (!Directory.Exists(projectsDir)) return records;
+
+        var cutoff = DateTime.UtcNow.AddDays(-daysBack);
+
+        foreach (var projectDir in Directory.GetDirectories(projectsDir))
+        {
+            foreach (var jsonlFile in Directory.GetFiles(projectDir, "*.jsonl"))
+            {
+                if (new FileInfo(jsonlFile).LastWriteTimeUtc < cutoff) continue;
+                ParseUsageFromFile(jsonlFile, records, cutoff);
+            }
+        }
+
+        return records;
+    }
+
+    private static void ParseUsageFromFile(
+        string filePath, List<ClaudeCodeUsageRecord> records, DateTime cutoff)
+    {
+        try
+        {
+            foreach (var line in File.ReadLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(line) || !line.Contains("output_tokens")) continue;
+                try
+                {
+                    var node = JsonNode.Parse(line);
+                    if (node == null) continue;
+                    if (node["type"]?.GetValue<string>() != "assistant") continue;
+                    if (node["error"]?.GetValue<string>() == "rate_limit") continue;
+
+                    var tsStr = node["timestamp"]?.GetValue<string>();
+                    if (!DateTime.TryParse(tsStr, null,
+                            System.Globalization.DateTimeStyles.RoundtripKind, out var ts)) continue;
+                    if (ts.Kind == DateTimeKind.Unspecified)
+                        ts = DateTime.SpecifyKind(ts, DateTimeKind.Utc);
+                    if (ts < cutoff) continue;
+
+                    var usage = node["message"]?["usage"];
+                    if (usage == null) continue;
+
+                    var outputTokens = usage["output_tokens"]?.GetValue<long>() ?? 0;
+                    if (outputTokens == 0) continue; // streaming partial
+
+                    records.Add(new ClaudeCodeUsageRecord
+                    {
+                        Timestamp = ts,
+                        Model = node["message"]?["model"]?.GetValue<string>() ?? "",
+                        SessionId = node["sessionId"]?.GetValue<string>() ?? "",
+                        ProjectPath = node["cwd"]?.GetValue<string>() ?? "",
+                        InputTokens = usage["input_tokens"]?.GetValue<long>() ?? 0,
+                        OutputTokens = outputTokens,
+                        CacheCreationTokens = usage["cache_creation_input_tokens"]?.GetValue<long>() ?? 0,
+                        CacheReadTokens = usage["cache_read_input_tokens"]?.GetValue<long>() ?? 0,
+                    });
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    // ── Rate limit detection ───────────────────────────────────────────────────
+
+    public ClaudeCodeRateLimitInfo GetRateLimitInfo()
+    {
+        var projectsDir = Path.Combine(_claudeDir, "projects");
+        if (!Directory.Exists(projectsDir)) return new ClaudeCodeRateLimitInfo();
+
+        ClaudeCodeRateLimitInfo? latest = null;
+        var lookback = DateTime.UtcNow.AddDays(-7);
+
+        foreach (var projectDir in Directory.GetDirectories(projectsDir))
+        {
+            var recentFiles = Directory.GetFiles(projectDir, "*.jsonl")
+                .Where(f => new FileInfo(f).LastWriteTimeUtc > lookback)
+                .OrderByDescending(f => new FileInfo(f).LastWriteTimeUtc)
+                .Take(10);
+
+            foreach (var jsonlFile in recentFiles)
+            {
+                var info = FindRateLimitInFile(jsonlFile);
+                if (info != null && (latest == null || info.RateLimitedAt > latest.RateLimitedAt))
+                    latest = info;
+            }
+        }
+
+        return latest ?? new ClaudeCodeRateLimitInfo();
+    }
+
+    private static ClaudeCodeRateLimitInfo? FindRateLimitInFile(string filePath)
+    {
+        ClaudeCodeRateLimitInfo? latest = null;
+        try
+        {
+            foreach (var line in File.ReadLines(filePath))
+            {
+                if (!line.Contains("rate_limit")) continue;
+                try
+                {
+                    var node = JsonNode.Parse(line);
+                    if (node == null) continue;
+                    if (node["error"]?.GetValue<string>() != "rate_limit") continue;
+
+                    var tsStr = node["timestamp"]?.GetValue<string>();
+                    if (!DateTime.TryParse(tsStr, null,
+                            System.Globalization.DateTimeStyles.RoundtripKind, out var ts)) continue;
+                    if (ts.Kind == DateTimeKind.Unspecified)
+                        ts = DateTime.SpecifyKind(ts, DateTimeKind.Utc);
+
+                    var content = node["message"]?["content"] as JsonArray;
+                    string resetText = content != null && content.Count > 0
+                        ? content[0]?["text"]?.GetValue<string>() ?? ""
+                        : "";
+
+                    if (latest == null || ts > latest.RateLimitedAt)
+                    {
+                        latest = new ClaudeCodeRateLimitInfo
+                        {
+                            IsRateLimited = true,
+                            RateLimitedAt = ts,
+                            ResetText = resetText,
+                        };
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return latest;
+    }
 }

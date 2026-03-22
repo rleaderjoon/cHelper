@@ -123,6 +123,7 @@ public class ApiSettingsControl : UserControl
             Text = "Start with Windows",
             AutoSize = true,
             ForeColor = TossTheme.TextSecondary,
+            BackColor = TossTheme.Background,
             Font = TossTheme.Body()
         };
         _startupCheck.CheckedChanged += (_, _) => {

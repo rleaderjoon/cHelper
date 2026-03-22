@@ -17,6 +17,7 @@ public class AppContext : ApplicationContext
     private readonly ClaudeCodeService _claudeCodeService;
     private readonly SettingsRepository _settingsRepo;
     private AppSettings _settings;
+    private bool _rateLimitNotified = false;
 
     public AppContext()
     {
@@ -99,31 +100,51 @@ public class AppContext : ApplicationContext
 
     private void RefreshTrayTooltip()
     {
-        var today = _usageService.GetToday();
-        var cost = TokenCostCalculator.FormatCost(today.TotalCostUsd);
-        var tokens = TokenCostCalculator.FormatTokens(today.TotalTokens);
-        string tooltipText = $"cHelper\nToday: {cost} | {tokens} tokens";
+        var today = _claudeCodeService.GetUsageToday();
+        string tokens = FormatTokens(today.Total);
 
-        // Cap tooltip at 127 chars (Windows limit)
+        string tooltipText = $"cHelper\n오늘: {tokens} tokens";
         if (tooltipText.Length > 127) tooltipText = tooltipText[..127];
         _trayIcon.Text = tooltipText;
 
-        // Update context menu usage item
         var usageItem = _trayIcon.ContextMenuStrip?.Items["usageItem"] as ToolStripMenuItem;
         if (usageItem != null)
-            usageItem.Text = $"Today: {cost} ({tokens} tokens)";
+            usageItem.Text = $"오늘: {tokens} tokens";
 
-        bool hasKey = _anthropic.IsConfigured;
-        _trayIcon.Icon = LoadTrayIcon(hasKey ? "tray_idle" : "tray_error");
+        // Rate limit check
+        var rl = _claudeCodeService.GetRateLimitInfo();
+        _trayIcon.Icon = LoadTrayIcon(rl.IsCurrentlyLimited ? "tray_error" : "tray_idle");
+
+        if (rl.IsCurrentlyLimited && _settings.ShowBalloonOnRateLimit && !_rateLimitNotified)
+        {
+            _rateLimitNotified = true;
+            _trayIcon.BalloonTipTitle = "사용량 한도 초과";
+            _trayIcon.BalloonTipText = string.IsNullOrEmpty(rl.ResetText)
+                ? "Claude 사용 한도에 도달했습니다."
+                : rl.ResetText;
+            _trayIcon.BalloonTipIcon = ToolTipIcon.Warning;
+            _trayIcon.ShowBalloonTip(5000);
+        }
+        else if (!rl.IsCurrentlyLimited)
+        {
+            _rateLimitNotified = false;
+        }
 
         _mainForm?.RefreshUsage();
+    }
+
+    private static string FormatTokens(long tokens)
+    {
+        if (tokens >= 1_000_000) return $"{tokens / 1_000_000.0:F1}M";
+        if (tokens >= 1_000) return $"{tokens / 1_000.0:F1}K";
+        return tokens.ToString();
     }
 
     private void ShowMainForm()
     {
         if (_mainForm == null || _mainForm.IsDisposed)
         {
-            _mainForm = new MainForm(_anthropic, _usageService, _claudeCodeService, _settingsRepo, _settings);
+            _mainForm = new MainForm(_anthropic, _claudeCodeService, _settingsRepo, _settings);
         }
         _mainForm.Show();
         _mainForm.BringToFront();
